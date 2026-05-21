@@ -27,7 +27,7 @@ public class ProblemeLineaire {
         this.contraintes = contraintes;
     }
 
-    public void ajouterContrainte(double[] coefficients, TypeContrainte operateur, int secondMembre) {
+    public void ajouterContrainte(double[] coefficients, TypeContrainte operateur, double secondMembre) {
         Contrainte contrainte = new Contrainte(coefficients, operateur, secondMembre);
         this.contraintes.add(contrainte);
     }
