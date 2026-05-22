@@ -12,9 +12,9 @@ public class SimplexDeuxPhase {
 
     public int chercherColonneEntrante(double[][] tableau, ProblemeLineaire probleme) {
         int nbrContraintes = probleme.getContraintes().size();
-        int nbrColonne = tableau[nbrContraintes].length-1; // sans le second membre
-        int indexMax = -1; // on retourne -1 si aucun valeur dans la ligne objectif est superieur a 0
-        double maxVal = 0; // on ne prend que des valeurs positifs
+        int nbrColonne = tableau[nbrContraintes].length-1;
+        int indexMax = -1;
+        double maxVal = 0;
         
         for(int j = 0; j < nbrColonne; j++) {
             if(tableau[nbrContraintes][j] > maxVal) {
@@ -23,12 +23,12 @@ public class SimplexDeuxPhase {
             }
         }
 
-        return indexMax; // retourne -1 ou l'index du max > 0
+        return indexMax;
     }
 
     public int chercherLigneSortante(double[][] tableau, int colEntrante, ProblemeLineaire probleme) {
         int nbrContraintes = probleme.getContraintes().size();
-        int nbrColonne = tableau[0].length-1; // index de la colonne du second membre
+        int nbrColonne = tableau[0].length-1;
 
         int indexLigneMin=-1;
         double ratioMin = Double.MAX_VALUE;
@@ -55,12 +55,10 @@ public class SimplexDeuxPhase {
 
         double pivot = tableau[lignePivot][colonnePivot];
 
-        // normaliser la ligne du pivot pour que le pivot = 1
         for(int j = 0; j < nbrColonne; j++) {
             tableau[lignePivot][j] = tableau[lignePivot][j]/pivot;
         }
 
-        // mettre a jour les autres lignes pour mettre des 0 dans la colonne du pivot
         for(int i = 0; i < nbrLigne; i++) {
             if(i != lignePivot) {
                 double coefAElimine = tableau[i][colonnePivot];
@@ -70,8 +68,6 @@ public class SimplexDeuxPhase {
             }
         }
     }
-
-    // reduire la somme des variables artificielles a 0 (W = a1 + a2)
     
     public void resoudrePhase1(double[][] tableau, ProblemeLineaire probleme) {
         int nbrContraintes = probleme.getContraintes().size();
@@ -85,50 +81,38 @@ public class SimplexDeuxPhase {
 
             int ligneSortante = chercherLigneSortante(tableau, colEntrante, probleme);
             if (ligneSortante == -1) {
-                // si toutes les coeff de la colonne entrante est negatif sur chaque ligne, alors la fonction objectif tend vers l'infinie sans rencontrer les contraintes
                 throw new ArithmeticException("L'algorithme s'arrête : Le problème est non borné (solution infinie).");
             }
 
             pivoter(tableau, colEntrante, ligneSortante, probleme);
         }
 
-        // si la valeur finale de la fonction objectif de la Phase 1 est différente de zéro, 
-        // cela signifie qu'il impossible de réduire les variables artificielles à zéro. 
-        // en d'autres termes, il n'existe aucune combinaison de variables qui puisse satisfaire toutes tes contraintes en même temps.
-        // donc la fonction objectif est ierralisable avec ces contraintes
-
-        // On utilise une petite marge d'erreur (epsilon) pour les arrondis des double
         double valeurObjectifPhase1 = tableau[nbrContraintes][nbrColonneb];
         if (Math.abs(valeurObjectifPhase1) > 1e-9) {
             throw new IllegalStateException("Le problème est irréalisable : aucune solution ne satisfait toutes les contraintes.");
         }
         
-        System.out.println("Phase 1 réussie ! Une solution réalisable de base a été trouvée.");
+        // System.out.println("Phase 1 réussie ! Une solution réalisable de base a été trouvée.");
     }
 
     public double[][] preparerTableauPhase2(double[][] tableauPhase1, List<PositionArtificielle> indexArtificielles, ProblemeLineaire probleme) {
         int nbrContraintes = probleme.getContraintes().size();
         int nbrColonnesPhase1 = tableauPhase1[0].length;
         
-        // calculer la largeur du nouveau tableau (Taille Phase 1 - Nombre d'artificielles)
         int nbrColonnesPhase2 = nbrColonnesPhase1 - indexArtificielles.size();
         double[][] tableauPhase2 = new double[nbrContraintes + 1][nbrColonnesPhase2];
         
-        // extraire uniquement les index des colonnes à bannir
         List<Integer> colonnesAIgnorer = new ArrayList<>();
         for (PositionArtificielle pos : indexArtificielles) {
             colonnesAIgnorer.add(pos.colonne());
         }
 
-        // copier les cases valides
         for (int i = 0; i <= nbrContraintes; i++) {
             int nouvelleColonne = 0;
             for (int j = 0; j < nbrColonnesPhase1; j++) {
-                // si la colonne j est une variable artificielle, on skip
                 if (colonnesAIgnorer.contains(j)) {
                     continue;
                 }
-                // sinon, on la copie dans notre tableau
                 tableauPhase2[i][nouvelleColonne] = tableauPhase1[i][j];
                 nouvelleColonne++;
             }
@@ -136,35 +120,119 @@ public class SimplexDeuxPhase {
         
         int nbrVariablesDecisions = probleme.getFonctionObjectif().length;
 
-        // injecter les coefficients de l'objectif en inversant le signe (-c_j)
         for(int j = 0; j < nbrVariablesDecisions; j++) {
-            tableauPhase2[nbrContraintes][j] = -probleme.getFonctionObjectif()[j];
+            tableauPhase2[nbrContraintes][j] = probleme.getFonctionObjectif()[j];
         }
 
-        // initialiser les variables d'écart/excès restantes à 0.0
         for(int j = nbrVariablesDecisions; j < nbrColonnesPhase2 - 1; j++) {
             tableauPhase2[nbrContraintes][j] = 0.0;
         }
 
-        // initialiser la valeur de la fonction objectif (colonne b) à 0.0
         tableauPhase2[nbrContraintes][nbrColonnesPhase2 - 1] = 0.0;
         
         return tableauPhase2;
     }
 
+    public int trouverVariableDeBasePourLigne(double[][] tableau, int ligne) {
+        int nbrColonne = tableau[0].length;
+        for(int j = 0; j < nbrColonne - 1; j++) {
+            if(Math.abs(tableau[ligne][j] - 1.0) < 1e-9) {
+                boolean estBase = true;
+                for(int i = 0; i < tableau.length - 1; i++) {
+                    if(i != ligne && Math.abs(tableau[i][j]) > 1e-9) {
+                        estBase = false;
+                        break;
+                    }
+                }
+                if(estBase) {
+                    return j;
+                }
+            }
+        }
+        return -1; 
+    }
+
+    public void ajusterLigneObjectif(double[][] tableau, ProblemeLineaire probleme) {
+        int nbrContraintes = probleme.getContraintes().size();
+        int nbrColonne = tableau[0].length;
+
+        for(int i = 0; i < nbrContraintes; i++) {
+            int varBase = trouverVariableDeBasePourLigne(tableau, i);
+            if(varBase != -1) {
+                double coef = tableau[nbrContraintes][varBase];
+                if(Math.abs(coef) > 1e-9) {
+                    for(int j = 0; j < nbrColonne; j++) {
+                        tableau[nbrContraintes][j] -= coef * tableau[i][j];
+                    }
+                }
+            }
+        }
+    }
+
+    public void resoudrePhase2(double[][] tableau, ProblemeLineaire probleme) {
+        ajusterLigneObjectif(tableau, probleme);
+        int nbrContraintes = probleme.getContraintes().size();
+        int nbrColonne = tableau[0].length;
+
+        while(true) {
+            int colEntrante = chercherColonneEntrante(tableau, probleme);
+            if(colEntrante == -1) {
+                System.out.println("Phase 2 terminée : Tableau optimal atteint.");
+                break;
+            }
+
+            int ligneSortante = chercherLigneSortante(tableau, colEntrante, probleme);
+            if (ligneSortante == -1) {
+                throw new ArithmeticException("L'algorithme s'arrête : Le problème est non borné (solution infinie).");
+            }
+
+            pivoter(tableau, ligneSortante, colEntrante, probleme);
+        }
+    }
+
     public double[][] resoudre(ProblemeLineaire probleme) {
-        // on construit le tableau initial avec les variables artificielles
         double[][] tableau = ConvertisseurStandard.construireTableauSimplex(probleme);
         
-        // on élimine les variables artificielles
         resoudrePhase1(tableau, probleme);
         
-        // on nettoie le tableau pour le problème reel
         double[][] tableauPhase2 = preparerTableauPhase2(tableau, ConvertisseurStandard.getIndexArtificielles(), probleme);
         
-        // on cherche la solution optimale finale
         resoudrePhase2(tableauPhase2, probleme);
         
-        return tableauPhase2; // contient la solution optimale
+        return tableauPhase2;
+    }
+
+    public List<Double> extraireSolution(double[][] tableauPhase2, ProblemeLineaire probleme) {
+        int nbrContraintes = probleme.getContraintes().size();
+        int nbrColonne = tableauPhase2[0].length;
+        List<Double> solution = new ArrayList<>();
+
+        for(int j = 0; j < nbrColonne - 1; j++) {
+            boolean estBase = false;
+            double valeurVariable = 0.0;
+
+            for(int i = 0; i < nbrContraintes; i++) {
+                if(tableauPhase2[i][j] == 1) {
+                    if(estBase) {
+                        estBase = false;
+                        break;
+                    } else {
+                        estBase = true;
+                        valeurVariable = tableauPhase2[i][nbrColonne - 1];
+                    }
+                } else if(tableauPhase2[i][j] != 0) {
+                    estBase = false;
+                    break;
+                }
+            }
+
+            if(estBase) {
+                solution.add(valeurVariable);
+            } else {
+                solution.add(0.0);
+            }
+        }
+
+        return solution;
     }
 }
